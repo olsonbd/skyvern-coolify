@@ -1,5 +1,12 @@
+networks:
+  skyvern-net:          # created fresh for each preview
+    driver: bridge
+    
 services:
   postgres:
+    hostname: postgres        # ← guarantees “postgres” resolves in preview deployments
+    networks:
+      - skyvern-net
     image: postgres:14-alpine
     restart: always
     # comment out if you want to externally connect DB
@@ -18,8 +25,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
   skyvern:
+    networks:
+      - skyvern-net
     image: public.ecr.aws/skyvern/skyvern:latest
     restart: on-failure
     # env_file is removed to manage variables in the Coolify UI.
@@ -38,7 +46,9 @@ services:
       # - ./skyvern:/app/skyvern
       # - ./alembic:/app/alembic
     environment:
-      - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
+      - DATABASE_HOST=${DATABASE_HOST:-postgres} #declare host for preview deployments
+      - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@${DATABASE_HOST}:5432/skyvern
+      # old declaration - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
       - BROWSER_TYPE=chromium-headful
       - ENABLE_CODE_BLOCK=true
       # - BROWSER_TYPE=cdp-connect
@@ -104,13 +114,15 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "test", "-f", "/app/.streamlit/secrets.toml"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/v1/health || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   ## Begin New Artifact Service
   artifact-server:
+    networks:
+      - skyvern-net
     build:
       context: ./skyvern-frontend
       dockerfile: dockerfile.artifact
