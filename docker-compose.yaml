@@ -5,7 +5,9 @@ networks:
 services:
   postgres:
     networks:
-      - skyvern-net
+      skyvern-net:
+        aliases:
+          - postgres        # additional DNS name
     image: postgres:14-alpine
     restart: always
     # comment out if you want to externally connect DB
