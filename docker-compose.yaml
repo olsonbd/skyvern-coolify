@@ -4,10 +4,9 @@ networks:
     
 services:
   postgres:
+    hostname: postgres        # ← guarantees “postgres” resolves in preview deployments
     networks:
-      skyvern-net:
-        aliases:
-          - postgres        # additional DNS name
+      - skyvern-net
     image: postgres:14-alpine
     restart: always
     # comment out if you want to externally connect DB
