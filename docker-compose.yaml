@@ -46,9 +46,10 @@ services:
       # - ./skyvern:/app/skyvern
       # - ./alembic:/app/alembic
     environment:
-      - DATABASE_HOST=${DATABASE_HOST:-postgres} #declare host for preview deployments
-      - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@${DATABASE_HOST}:5432/skyvern
+      # old declaration - DATABASE_HOST=${DATABASE_HOST:-postgres} #declare host for preview deployments
+      # old declaration - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@${DATABASE_HOST}:5432/skyvern
       # old declaration - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
+      - DATABASE_URL=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
       - BROWSER_TYPE=chromium-headful
       - ENABLE_CODE_BLOCK=true
       # - BROWSER_TYPE=cdp-connect
