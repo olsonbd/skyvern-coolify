@@ -1,12 +1,5 @@
-networks:
-  skyvern-net:          # created fresh for each preview
-    driver: bridge
-    
 services:
   postgres:
-    hostname: postgres        # ← guarantees “postgres” resolves in preview deployments
-    networks:
-      - skyvern-net
     image: postgres:14-alpine
     restart: always
     # comment out if you want to externally connect DB
@@ -25,17 +18,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    command:  ["sh", "-c", "alembic upgrade head && uvicorn skyvern.agent.server:app --host 0.0.0.0 --port 8000"] #ensure database migrations are applied and start application
+
   skyvern:
-    networks:
-      - skyvern-net
     image: public.ecr.aws/skyvern/skyvern:latest
     restart: on-failure
     # env_file is removed to manage variables in the Coolify UI.
-    ports:
-      # Includes default values. Coolify UI variables will override these.
-      - "${SKYVERN_HOST_PORT:-8001}:8000"
-      - "${CDP_HOST_PORT:-9222}:9222"
+    # replaced host-port bindings with internal exposes
+    expose:
+      - "${SKYVERN_HOST_PORT}"   # container port (was ${SKYVERN_HOST_PORT}:8000)
+      - "9222"   # container port (was ${CDP_HOST_PORT}:9222)
     volumes:
       # Using named volumes for persistent artifact/log storage
       - artifacts-data:/data/artifacts
@@ -47,12 +38,11 @@ services:
       # - ./skyvern:/app/skyvern
       # - ./alembic:/app/alembic
     environment:
-      # old declaration - DATABASE_HOST=${DATABASE_HOST:-postgres} #declare host for preview deployments
-      # old declaration - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@${DATABASE_HOST}:5432/skyvern
-      # old declaration - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
-      - DATABASE_URL=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
+      - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
       - BROWSER_TYPE=chromium-headful
       - ENABLE_CODE_BLOCK=true
+      - SKYVERN_HOST_PORT=${SKYVERN_HOST_PORT:-8001}"
+      - CDP_HOST_PORT=-9222
       # - BROWSER_TYPE=cdp-connect
       # Use this command to start Chrome with remote debugging:
       # "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="C:\chrome-cdp-profile" --no-first-run --no-default-browser-check
@@ -77,7 +67,7 @@ services:
       # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       # Microsoft Azure OpenAI support:
       # - ENABLE_AZURE=true
-      # - LLM_KEY=AZURE_OPENAI                          # Leave this value static, don't change it
+      # - LLM_KEY=AZURE_OPENAI                      # Leave this value static, don't change it
       # - AZURE_DEPLOYMENT=${AZURE_DEPLOYMENT}      # Use the OpenAI model "Deployment Name" that you deployed
       # - AZURE_API_KEY=${AZURE_API_KEY}            # Copy and paste Key1 or Key2 from the OpenAI resource in Azure Portal
       # - AZURE_API_BASE=${AZURE_API_BASE}          # Copy and paste the "Endpoint" from the OpenAI resource in Azure Portal
@@ -111,68 +101,65 @@ services:
       - BITWARDEN_CLIENT_ID=${BITWARDEN_CLIENT_ID}
       - BITWARDEN_CLIENT_SECRET=${BITWARDEN_CLIENT_SECRET}
       - BITWARDEN_MASTER_PASSWORD=${BITWARDEN_MASTER_PASSWORD}
+
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/v1/health || exit 1"]
+      test: ["CMD", "test", "-f", "/app/.streamlit/secrets.toml"]
       interval: 5s
       timeout: 5s
       retries: 5
+
   ## Begin New Artifact Service
   artifact-server:
-    networks:
-      - skyvern-net
     build:
       context: ./skyvern-frontend
       dockerfile: dockerfile.artifact
     restart: on-failure
-    ports:
-      - "9090:9090"
+    # host binding removed; expose container port only
+    expose:
+      - "9090"
     volumes:
       - artifacts-data:/data/artifacts
     environment:
       - NODE_ENV=production
- ## End New Artifact Service
+  ## End New Artifact Service
+
   skyvern-ui:
     image: public.ecr.aws/skyvern/skyvern-ui:latest
     restart: on-failure
-    ports:
-      # Includes default values. Coolify UI variables will override these.
-      - "${UI_HOST_PORT:-8081}:8080"
-      # Port mapping below moved to artifact-server service
-      # - "${UI_ARTIFACT_PORT:-9090}:9090"
+    # host-port binding removed; expose container port only
+    expose:
+      - "${UI_HOST_PORT}"
     volumes:
       # Using named volumes shared with the skyvern service
       - artifacts-data:/data/artifacts
       - videos-data:/data/videos
       - har-data:/data/har
       - streamlit-data:/app/.streamlit
-    # The environment block is now correctly placed here and uses Coolify's templating.
     environment:
-    # Declare the Service FQDN in Coolify
-      - VITE_ENABLE_CODE_BLOCK=true
+      - UI_HOST_PORT=${UI_HOST_PORT:-8081}
+      # Declare the Service FQDN in Coolify
       - API_DOMAIN=${API_DOMAIN:-skyvern-api.example.com}
       - ARTIFACT_DOMAIN=${ARTIFACT_DOMAIN:-skyvern-artifact.example.com}
-    # if you want to run skyvern on a remote server,
-    # you need to change the host in VITE_WSS_BASE_URL and VITE_API_BASE_URL to match your server ip
-    # If you're self-hosting this behind a dns, you'll want to set:
-    #   A route for the API: api.yourdomain.com -> localhost:8001
-    #   A route for the UI: yourdomain.com -> localhost:8080
-    #   A route for the artifact API: artifact.yourdomain.com -> localhost:9090 (maybe not needed)
+      # if you want to run skyvern on a remote server,
+      # you need to change the host in VITE_WSS_BASE_URL and VITE_API_BASE_URL to match your server ip
+      # If you're self-hosting this behind a dns, you'll want to set:
+      #   A route for the API: api.yourdomain.com -> localhost:8001
+      #   A route for the UI: yourdomain.com -> localhost:8080
+      #   A route for the artifact API: artifact.yourdomain.com -> localhost:9090 (maybe not needed)
+      - VITE_ENABLE_CODE_BLOCK=true
       - VITE_WSS_BASE_URL=wss://${API_DOMAIN}/api/v1
       - VITE_ARTIFACT_API_BASE_URL=https://${ARTIFACT_DOMAIN}
       - VITE_API_BASE_URL=https://${API_DOMAIN}/api/v1
-    # old - VITE_WSS_BASE_URL=wss:${COOLIFY_FQDN}
-    # old - VITE_ARTIFACT_API_BASE_URL=https://artifact.${COOLIFY_FQDN}
-    # old - VITE_API_BASE_URL=https://api.${COOLIFY_FQDN}/api/v1
-    # This will appear as an editable field in the UI. Get the value from the Skyvern UI's settings page after first deployment.
+      # This will appear as an editable field in the UI. Get the value from the Skyvern UI's settings page after first deployment.
       - VITE_SKYVERN_API_KEY=${VITE_SKYVERN_API_KEY}
     depends_on:
       skyvern:
         condition: service_healthy
+
 # Top-level declaration for all named volumes used by the services.
-# This is required for Docker to create them.
 volumes:
   postgres-data: {}
   artifacts-data: {}
