@@ -41,7 +41,7 @@ services:
       - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
       - BROWSER_TYPE=chromium-headful
       - ENABLE_CODE_BLOCK=true
-      - SKYVERN_HOST_PORT=${SKYVERN_HOST_PORT:-8001}"
+      - SKYVERN_HOST_PORT=${SKYVERN_HOST_PORT:-8001}
       - CDP_HOST_PORT=-9222
       # - BROWSER_TYPE=cdp-connect
       # Use this command to start Chrome with remote debugging:
