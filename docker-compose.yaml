@@ -132,6 +132,8 @@ services:
     # host-port binding removed; expose container port only
     expose:
       - "${UI_HOST_PORT}"
+      # Port mapping below moved to artifact-server service
+      # - "${UI_ARTIFACT_PORT:-9090}:9090"
     volumes:
       # Using named volumes shared with the skyvern service
       - artifacts-data:/data/artifacts
