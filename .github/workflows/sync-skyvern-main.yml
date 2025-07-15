@@ -1,43 +1,33 @@
 name: Sync with Main
-
 on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-
   # Runs the workflow automatically every day at 10:00 UTC
   schedule:
     - cron: "0 10 * * *"
-
 jobs:
   sync:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Fork
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_PAT }}
           fetch-depth: 0
-
       - name: Set Git config
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
-
       - name: Add Upstream Remote
         run: git remote add upstream https://github.com/skyvern-ai/skyvern.git
-
       - name: Fetch from Upstream
         run: git fetch upstream
-
       # Backup local README.md before merge
       - name: Backup local README.md
         run: |
           cp README.md README.local.backup.md || true
-
       - name: Merge Upstream
         run: git merge upstream/main -m "Merge upstream changes" || true
-
       # Restore local README.md after merge
       - name: Restore local README.md
         run: |
@@ -45,21 +35,18 @@ jobs:
             mv README.local.backup.md README.md
             git add README.md
           fi
-
       # Ensure docker-compose.yml is deleted if it exists
       - name: Ensure docker-compose.yml is deleted
         run: |
           if [ -f docker-compose.yml ]; then
             git rm -f docker-compose.yml
           fi
-
       # Stage docker-compose.yaml, if it exists
       - name: Stage preserved file
         run: |
           if [ -f docker-compose.yaml ]; then
             git add docker-compose.yaml
           fi
-
       # Remove unwanted workflow files from upstream, only if they exist
       - name: Remove unwanted upstream workflows
         run: |
@@ -79,12 +66,10 @@ jobs:
           if [ ! -f skyvern-frontend/dockerfile.artifact ]; then
             git checkout origin/main -- skyvern-frontend/dockerfile.artifact || touch skyvern-frontend/dockerfile.artifact
           fi
-
       - name: Commit changes
         run: |
           if ! git diff-index --quiet HEAD; then
             git commit -m "chore: Sync with upstream and preserve docker-compose.yaml, skyvern-frontend/dockerfile.artifact, README.md"
           fi
-
       - name: Push changes
         run: git push origin main

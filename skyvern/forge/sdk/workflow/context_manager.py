@@ -172,8 +172,6 @@ class WorkflowRunContext:
         """
         secret_credentials = await BitwardenService.get_secret_value_from_url(
             url=self.secrets[BitwardenConstants.URL],
-            client_secret=self.secrets[BitwardenConstants.CLIENT_SECRET],
-            client_id=self.secrets[BitwardenConstants.CLIENT_ID],
             master_password=self.secrets[BitwardenConstants.MASTER_PASSWORD],
             bw_organization_id=self.secrets[BitwardenConstants.BW_ORGANIZATION_ID],
             bw_collection_ids=self.secrets[BitwardenConstants.BW_COLLECTION_IDS],
@@ -365,24 +363,13 @@ class WorkflowRunContext:
         organization: Organization,
     ) -> None:
         try:
-            # Get the Bitwarden login credentials from AWS secrets
-            client_id = settings.BITWARDEN_CLIENT_ID or await self._aws_client.get_secret(
-                parameter.bitwarden_client_id_aws_secret_key
-            )
-            client_secret = settings.BITWARDEN_CLIENT_SECRET or await self._aws_client.get_secret(
-                parameter.bitwarden_client_secret_aws_secret_key
-            )
             master_password = settings.BITWARDEN_MASTER_PASSWORD or await self._aws_client.get_secret(
                 parameter.bitwarden_master_password_aws_secret_key
             )
         except Exception as e:
-            LOG.error(f"Failed to get Bitwarden login credentials from AWS secrets. Error: {e}")
+            LOG.error(f"Failed to get Bitwarden credentials from AWS secrets. Error: {e}")
             raise e
 
-        if not client_id:
-            raise ValueError("Bitwarden client ID not found")
-        if not client_secret:
-            raise ValueError("Bitwarden client secret not found")
         if not master_password:
             raise ValueError("Bitwarden master password not found")
 
@@ -419,8 +406,6 @@ class WorkflowRunContext:
 
         try:
             secret_credentials = await BitwardenService.get_secret_value_from_url(
-                client_id,
-                client_secret,
                 master_password,
                 organization.bw_organization_id,
                 organization.bw_collection_ids,
@@ -432,8 +417,6 @@ class WorkflowRunContext:
                 self.secrets[BitwardenConstants.BW_ORGANIZATION_ID] = organization.bw_organization_id
                 self.secrets[BitwardenConstants.BW_COLLECTION_IDS] = organization.bw_collection_ids
                 self.secrets[BitwardenConstants.URL] = url
-                self.secrets[BitwardenConstants.CLIENT_SECRET] = client_secret
-                self.secrets[BitwardenConstants.CLIENT_ID] = client_id
                 self.secrets[BitwardenConstants.MASTER_PASSWORD] = master_password
                 self.secrets[BitwardenConstants.BW_COLLECTION_ID] = parameter.bitwarden_collection_id
                 self.secrets[BitwardenConstants.BW_ITEM_ID] = item_id
@@ -468,24 +451,13 @@ class WorkflowRunContext:
         organization: Organization,
     ) -> None:
         try:
-            # Get the Bitwarden login credentials from AWS secrets
-            client_id = settings.BITWARDEN_CLIENT_ID or await self._aws_client.get_secret(
-                parameter.bitwarden_client_id_aws_secret_key
-            )
-            client_secret = settings.BITWARDEN_CLIENT_SECRET or await self._aws_client.get_secret(
-                parameter.bitwarden_client_secret_aws_secret_key
-            )
             master_password = settings.BITWARDEN_MASTER_PASSWORD or await self._aws_client.get_secret(
                 parameter.bitwarden_master_password_aws_secret_key
             )
         except Exception as e:
-            LOG.error(f"Failed to get Bitwarden login credentials from AWS secrets. Error: {e}")
+            LOG.error(f"Failed to get Bitwarden credentials from AWS secrets. Error: {e}")
             raise e
 
-        if not client_id:
-            raise ValueError("Bitwarden client ID not found")
-        if not client_secret:
-            raise ValueError("Bitwarden client secret not found")
         if not master_password:
             raise ValueError("Bitwarden master password not found")
 
@@ -499,8 +471,6 @@ class WorkflowRunContext:
 
         try:
             sensitive_values = await BitwardenService.get_sensitive_information_from_identity(
-                client_id,
-                client_secret,
                 master_password,
                 organization.bw_organization_id,
                 organization.bw_collection_ids,
@@ -512,8 +482,6 @@ class WorkflowRunContext:
                 self.secrets[BitwardenConstants.BW_ORGANIZATION_ID] = organization.bw_organization_id
                 self.secrets[BitwardenConstants.BW_COLLECTION_IDS] = organization.bw_collection_ids
                 self.secrets[BitwardenConstants.IDENTITY_KEY] = bitwarden_identity_key
-                self.secrets[BitwardenConstants.CLIENT_SECRET] = client_secret
-                self.secrets[BitwardenConstants.CLIENT_ID] = client_id
                 self.secrets[BitwardenConstants.MASTER_PASSWORD] = master_password
                 self.secrets[BitwardenConstants.BW_COLLECTION_ID] = collection_id
 
@@ -535,24 +503,13 @@ class WorkflowRunContext:
         organization: Organization,
     ) -> None:
         try:
-            # Get the Bitwarden login credentials from AWS secrets
-            client_id = settings.BITWARDEN_CLIENT_ID or await self._aws_client.get_secret(
-                parameter.bitwarden_client_id_aws_secret_key
-            )
-            client_secret = settings.BITWARDEN_CLIENT_SECRET or await self._aws_client.get_secret(
-                parameter.bitwarden_client_secret_aws_secret_key
-            )
             master_password = settings.BITWARDEN_MASTER_PASSWORD or await self._aws_client.get_secret(
                 parameter.bitwarden_master_password_aws_secret_key
             )
         except Exception as e:
-            LOG.error(f"Failed to get Bitwarden login credentials from AWS secrets. Error: {e}")
+            LOG.error(f"Failed to get Bitwarden credentials from AWS secrets. Error: {e}")
             raise e
 
-        if not client_id:
-            raise ValueError("Bitwarden client ID not found")
-        if not client_secret:
-            raise ValueError("Bitwarden client secret not found")
         if not master_password:
             raise ValueError("Bitwarden master password not found")
 
@@ -568,8 +525,6 @@ class WorkflowRunContext:
 
         try:
             credit_card_data = await BitwardenService.get_credit_card_data(
-                client_id,
-                client_secret,
                 master_password,
                 organization.bw_organization_id,
                 organization.bw_collection_ids,
@@ -579,8 +534,6 @@ class WorkflowRunContext:
             if not credit_card_data:
                 raise ValueError("Credit card data not found in Bitwarden")
 
-            self.secrets[BitwardenConstants.CLIENT_ID] = client_id
-            self.secrets[BitwardenConstants.CLIENT_SECRET] = client_secret
             self.secrets[BitwardenConstants.MASTER_PASSWORD] = master_password
             self.secrets[BitwardenConstants.BW_ITEM_ID] = item_id
 

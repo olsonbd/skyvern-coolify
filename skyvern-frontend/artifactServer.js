@@ -22,7 +22,9 @@ app.get("/artifact/recording", (req, res) => {
     return;
   }
   if (!range) {
-    res.status(400).send("Missing 'Range' header. This endpoint requires range requests.");
+    res
+      .status(400)
+      .send("Missing 'Range' header. This endpoint requires range requests.");
     return;
   }
 
@@ -48,7 +50,9 @@ app.get("/artifact/recording", (req, res) => {
     return;
   }
   const start = parseInt(matches[1], 10);
-  const end = matches[2] ? Math.min(parseInt(matches[2], 10), videoSize - 1) : videoSize - 1;
+  const end = matches[2]
+    ? Math.min(parseInt(matches[2], 10), videoSize - 1)
+    : videoSize - 1;
 
   if (start > end || start < 0 || end >= videoSize) {
     res.status(416).send("Requested Range Not Satisfiable");

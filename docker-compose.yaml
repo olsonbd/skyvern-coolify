@@ -18,15 +18,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
   skyvern:
     image: public.ecr.aws/skyvern/skyvern:latest
     restart: on-failure
     # env_file is removed to manage variables in the Coolify UI.
     # replaced host-port bindings with internal exposes
     expose:
-      - "8000"   # container port (was ${SKYVERN_HOST_PORT}:8000)
-      - "9222"   # container port (was ${CDP_HOST_PORT}:9222)
+      - "8000" # container port (was ${SKYVERN_HOST_PORT}:8000)
+      - "9222" # container port (was ${CDP_HOST_PORT}:9222)
     volumes:
       # Using named volumes for persistent artifact/log storage
       - artifacts-data:/data/artifacts
@@ -99,7 +98,6 @@ services:
       - BITWARDEN_CLIENT_ID=${BITWARDEN_CLIENT_ID}
       - BITWARDEN_CLIENT_SECRET=${BITWARDEN_CLIENT_SECRET}
       - BITWARDEN_MASTER_PASSWORD=${BITWARDEN_MASTER_PASSWORD}
-
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,7 +106,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
   ## Begin New Artifact Service
   artifact-server:
     build:
@@ -157,7 +154,6 @@ services:
     depends_on:
       skyvern:
         condition: service_healthy
-
 # Top-level declaration for all named volumes used by the services.
 volumes:
   postgres-data: {}
