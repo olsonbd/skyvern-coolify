@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:14-alpine
+    hostname: postgres
     restart: always
     # comment out if you want to externally connect DB
     # ports:
@@ -18,7 +19,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    command:  ["sh", "-c", "alembic upgrade head && uvicorn skyvern.agent.server:app --host 0.0.0.0 --port 8000"] #ensure database migrations are applied and start application
   skyvern:
     image: public.ecr.aws/skyvern/skyvern:latest
     restart: on-failure
@@ -38,7 +38,8 @@ services:
       # - ./skyvern:/app/skyvern
       # - ./alembic:/app/alembic
     environment:
-      - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
+      # old - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
+      - DATABASE_URL=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
       - BROWSER_TYPE=chromium-headful
       - ENABLE_CODE_BLOCK=true
       - SKYVERN_HOST_PORT=${SKYVERN_HOST_PORT:-8001}
@@ -101,7 +102,6 @@ services:
       - BITWARDEN_CLIENT_ID=${BITWARDEN_CLIENT_ID}
       - BITWARDEN_CLIENT_SECRET=${BITWARDEN_CLIENT_SECRET}
       - BITWARDEN_MASTER_PASSWORD=${BITWARDEN_MASTER_PASSWORD}
-
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,7 +110,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
+    command:  ["sh", "-c", "alembic upgrade head && uvicorn skyvern.agent.server:app --host 0.0.0.0 --port 8000"] #ensure database migrations are applied and start application
   ## Begin New Artifact Service
   artifact-server:
     build:
