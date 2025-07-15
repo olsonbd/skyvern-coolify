@@ -1,7 +1,6 @@
 services:
   postgres:
     image: postgres:14-alpine
-    hostname: postgres
     restart: always
     # comment out if you want to externally connect DB
     # ports:
@@ -19,13 +18,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
   skyvern:
     image: public.ecr.aws/skyvern/skyvern:latest
     restart: on-failure
     # env_file is removed to manage variables in the Coolify UI.
     # replaced host-port bindings with internal exposes
     expose:
-      - "${SKYVERN_HOST_PORT}"   # container port (was ${SKYVERN_HOST_PORT}:8000)
+      - "8000"   # container port (was ${SKYVERN_HOST_PORT}:8000)
       - "9222"   # container port (was ${CDP_HOST_PORT}:9222)
     volumes:
       # Using named volumes for persistent artifact/log storage
@@ -38,12 +38,9 @@ services:
       # - ./skyvern:/app/skyvern
       # - ./alembic:/app/alembic
     environment:
-      # old - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
-      - DATABASE_URL=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
+      - DATABASE_STRING=postgresql+psycopg://skyvern:skyvern@postgres:5432/skyvern
       - BROWSER_TYPE=chromium-headful
       - ENABLE_CODE_BLOCK=true
-      - SKYVERN_HOST_PORT=${SKYVERN_HOST_PORT:-8001}
-      - CDP_HOST_PORT=-9222
       # - BROWSER_TYPE=cdp-connect
       # Use this command to start Chrome with remote debugging:
       # "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="C:\chrome-cdp-profile" --no-first-run --no-default-browser-check
@@ -102,6 +99,7 @@ services:
       - BITWARDEN_CLIENT_ID=${BITWARDEN_CLIENT_ID}
       - BITWARDEN_CLIENT_SECRET=${BITWARDEN_CLIENT_SECRET}
       - BITWARDEN_MASTER_PASSWORD=${BITWARDEN_MASTER_PASSWORD}
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,7 +108,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    command:  ["sh", "-c", "alembic upgrade head && uvicorn skyvern.agent.server:app --host 0.0.0.0 --port 8000"] #ensure database migrations are applied and start application
+
   ## Begin New Artifact Service
   artifact-server:
     build:
@@ -131,7 +129,7 @@ services:
     restart: on-failure
     # host-port binding removed; expose container port only
     expose:
-      - "${UI_HOST_PORT}"
+      - "8080"
       # Port mapping below moved to artifact-server service
       # - "${UI_ARTIFACT_PORT:-9090}:9090"
     volumes:
@@ -141,7 +139,6 @@ services:
       - har-data:/data/har
       - streamlit-data:/app/.streamlit
     environment:
-      - UI_HOST_PORT=${UI_HOST_PORT:-8081}
       # Declare the Service FQDN in Coolify
       - API_DOMAIN=${API_DOMAIN:-skyvern-api.example.com}
       - ARTIFACT_DOMAIN=${ARTIFACT_DOMAIN:-skyvern-artifact.example.com}
