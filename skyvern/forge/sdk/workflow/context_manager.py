@@ -499,8 +499,6 @@ class WorkflowRunContext:
 
         try:
             sensitive_values = await BitwardenService.get_sensitive_information_from_identity(
-                client_id,
-                client_secret,
                 master_password,
                 organization.bw_organization_id,
                 organization.bw_collection_ids,
@@ -568,8 +566,6 @@ class WorkflowRunContext:
 
         try:
             credit_card_data = await BitwardenService.get_credit_card_data(
-                client_id,
-                client_secret,
                 master_password,
                 organization.bw_organization_id,
                 organization.bw_collection_ids,
