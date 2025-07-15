@@ -223,9 +223,7 @@ class BitwardenService:
                 )
                 fail_reasons.append(f"{type(e).__name__}: {str(e)}")
 
-        raise BitwardenListItemsError(
-            f"Bitwarden CLI failed after all retry attempts. Fail reasons: {fail_reasons}"
-        )
+        raise BitwardenListItemsError(f"Bitwarden CLI failed after all retry attempts. Fail reasons: {fail_reasons}")
 
     @staticmethod
     def extract_totp_secret(totp_value: str) -> str:
@@ -399,8 +397,6 @@ class BitwardenService:
 
     @staticmethod
     async def get_sensitive_information_from_identity(
-        client_id: str,
-        client_secret: str,
         master_password: str,
         bw_organization_id: str | None,
         bw_collection_ids: list[str] | None,
@@ -411,16 +407,12 @@ class BitwardenService:
         timeout: int = settings.BITWARDEN_TIMEOUT_SECONDS,
         fail_reasons: list[str] = [],
     ) -> dict[str, str]:
-        """
-        Get the secret value from the Bitwarden CLI.
-        """
+        """Get sensitive information via the Vault Management API."""
         if not bw_organization_id and bw_collection_ids and collection_id not in bw_collection_ids:
             raise BitwardenAccessDeniedError()
         try:
             async with asyncio.timeout(timeout):
                 return await BitwardenService._get_sensitive_information_from_identity(
-                    client_id=client_id,
-                    client_secret=client_secret,
                     master_password=master_password,
                     bw_organization_id=bw_organization_id,
                     bw_collection_ids=bw_collection_ids,
@@ -439,8 +431,6 @@ class BitwardenService:
             remaining_retries -= 1
             LOG.info("Retrying to get sensitive information from Bitwarden", remaining_retries=remaining_retries)
             return await BitwardenService.get_sensitive_information_from_identity(
-                client_id=client_id,
-                client_secret=client_secret,
                 master_password=master_password,
                 bw_organization_id=bw_organization_id,
                 bw_collection_ids=bw_collection_ids,
@@ -455,8 +445,6 @@ class BitwardenService:
 
     @staticmethod
     async def _get_sensitive_information_from_identity(
-        client_id: str,
-        client_secret: str,
         master_password: str,
         collection_id: str,
         identity_key: str,
@@ -464,73 +452,44 @@ class BitwardenService:
         bw_organization_id: str | None,
         bw_collection_ids: list[str] | None,
     ) -> dict[str, str]:
-        """
-        Get the sensitive information from the Bitwarden CLI.
-        """
-        try:
-            await BitwardenService.login(client_id, client_secret)
-            await BitwardenService.sync()
-            session_key = await BitwardenService.unlock(master_password)
+        """Get sensitive information using the Vault Management API."""
+        await BitwardenService._unlock_using_server(master_password)
 
-            if not bw_organization_id and not collection_id:
-                raise BitwardenAccessDeniedError()
+        if not bw_organization_id and not collection_id:
+            raise BitwardenAccessDeniedError()
 
-            # Step 3: Retrieve the items
-            list_command = [
-                "bw",
-                "list",
-                "items",
-                "--search",
-                identity_key,
-                "--session",
-                session_key,
-                "--collectionid",
-                collection_id,
-            ]
-            if bw_organization_id:
-                list_command.extend(["--organizationid", bw_organization_id])
-            items_result = await BitwardenService.run_command(list_command)
+        params = {"search": identity_key, "collectionId": collection_id}
+        if bw_organization_id:
+            params["organizationId"] = bw_organization_id
 
-            # Parse the items and extract sensitive information
-            try:
-                items = json.loads(items_result.stdout)
-            except json.JSONDecodeError:
-                raise BitwardenListItemsError("Failed to parse items JSON. Output: " + items_result.stdout)
-            if not items:
-                raise BitwardenListItemsError(
-                    f"No items found in Bitwarden for identity key: {identity_key} in collection with ID: {collection_id}"
-                )
+        query = urllib.parse.urlencode(params)
+        response = await aiohttp_get_json(f"{BITWARDEN_SERVER_BASE_URL}/list/object/items?{query}")
+        if not response or response.get("success") is False:
+            raise BitwardenListItemsError("Failed to get collection items")
 
-            # Filter the identity items
-            # https://bitwarden.com/help/cli/#create lists the type of the identity items as 4
+        items = response["data"]["data"]
+        if not items:
+            raise BitwardenListItemsError(
+                f"No items found in Bitwarden for identity key: {identity_key} in collection with ID: {collection_id}"
+            )
 
-            # We may want to filter it by type in the future, but for now we just take the first item and check its identity fields
-            # identity_items = [item for item in items if item["type"] == 4]
+        identity_item = items[0]
 
-            identity_item = items[0]
+        sensitive_information: dict[str, str] = {}
+        for field in identity_fields:
+            for item in identity_item.get("fields", []):
+                if item.get("name") == field:
+                    sensitive_information[field] = item.get("value", "")
+                    break
 
-            sensitive_information: dict[str, str] = {}
-            for field in identity_fields:
-                # The identity item may store sensitive information in custom fields or default fields
-                # Custom fields are prioritized over default fields
-                # TODO (kerem): Make this case insensitive?
-                for item in identity_item["fields"]:
-                    if item["name"] == field:
-                        sensitive_information[field] = item["value"]
-                        break
+            if (
+                "identity" in identity_item
+                and field in identity_item["identity"]
+                and field not in sensitive_information
+            ):
+                sensitive_information[field] = identity_item["identity"][field]
 
-                if (
-                    "identity" in identity_item
-                    and field in identity_item["identity"]
-                    and field not in sensitive_information
-                ):
-                    sensitive_information[field] = identity_item["identity"][field]
-
-            return sensitive_information
-
-        finally:
-            # Step 4: Log out
-            await BitwardenService.logout()
+        return sensitive_information
 
     @staticmethod
     async def login(client_id: str, client_secret: str) -> None:
@@ -605,84 +564,49 @@ class BitwardenService:
 
     @staticmethod
     async def _get_credit_card_data(
-        client_id: str,
-        client_secret: str,
         master_password: str,
         bw_organization_id: str | None,
         bw_collection_ids: list[str] | None,
         collection_id: str,
         item_id: str,
     ) -> dict[str, str]:
-        """
-        Get the credit card data from the Bitwarden CLI.
-        """
-        try:
-            await BitwardenService.login(client_id, client_secret)
-            await BitwardenService.sync()
-            session_key = await BitwardenService.unlock(master_password)
+        """Get credit card data using the Vault Management API."""
+        await BitwardenService._unlock_using_server(master_password)
 
-            # Step 3: Get the item
-            get_command = [
-                "bw",
-                "get",
-                "item",
-                item_id,
-                "--session",
-                session_key,
-            ]
+        if not bw_organization_id and not collection_id:
+            LOG.error("No collection ID or organization ID provided -- this is required")
+            raise BitwardenAccessDeniedError()
 
-            # Bitwarden CLI doesn't support filtering by organization ID or collection ID for credit card data so we just raise an error if no collection ID or organization ID is provided
-            if not bw_organization_id and not collection_id:
-                LOG.error("No collection ID or organization ID provided -- this is required")
+        response = await aiohttp_get_json(f"{BITWARDEN_SERVER_BASE_URL}/object/item/{item_id}")
+        if not response or response.get("success") is False:
+            raise BitwardenListItemsError(f"Failed to get item with ID: {item_id}")
+
+        item = response["data"]
+
+        if bw_organization_id and item.get("organizationId") != bw_organization_id:
+            raise BitwardenAccessDeniedError()
+
+        if bw_collection_ids:
+            item_collection_ids = item.get("collectionIds")
+            if item_collection_ids and collection_id not in bw_collection_ids:
                 raise BitwardenAccessDeniedError()
 
-            item_result = await BitwardenService.run_command(get_command)
+        if item["type"] != get_bitwarden_item_type_code(BitwardenItemType.CREDIT_CARD):
+            raise BitwardenListItemsError(f"Item with ID: {item_id} is not a credit card type")
 
-            # Parse the item and extract credit card data
-            try:
-                item = json.loads(item_result.stdout)
-            except json.JSONDecodeError:
-                raise BitwardenListItemsError(f"Failed to parse item JSON for item ID: {item_id}")
+        credit_card_data = item["card"]
 
-            if not item:
-                raise BitwardenListItemsError(f"No item found in Bitwarden for item ID: {item_id}")
-
-            # Check if the bw_organization_id matches
-            if bw_organization_id:
-                item_organization_id = item.get("organizationId")
-                if item_organization_id != bw_organization_id:
-                    raise BitwardenAccessDeniedError()
-
-            if bw_collection_ids:
-                item_collection_ids = item.get("collectionIds")
-                if item_collection_ids and collection_id not in bw_collection_ids:
-                    raise BitwardenAccessDeniedError()
-
-            # Check if the item is a credit card
-            # https://bitwarden.com/help/cli/#create lists the type of the credit card items as 3
-            if item["type"] != 3:
-                raise BitwardenListItemsError(f"Item with ID: {item_id} is not a credit card type")
-
-            credit_card_data = item["card"]
-
-            mapped_credit_card_data: dict[str, str] = {
-                BitwardenConstants.CREDIT_CARD_HOLDER_NAME: credit_card_data["cardholderName"],
-                BitwardenConstants.CREDIT_CARD_NUMBER: credit_card_data["number"],
-                BitwardenConstants.CREDIT_CARD_EXPIRATION_MONTH: credit_card_data["expMonth"],
-                BitwardenConstants.CREDIT_CARD_EXPIRATION_YEAR: credit_card_data["expYear"],
-                BitwardenConstants.CREDIT_CARD_CVV: credit_card_data["code"],
-                BitwardenConstants.CREDIT_CARD_BRAND: credit_card_data["brand"],
-            }
-
-            return mapped_credit_card_data
-        finally:
-            # Step 4: Log out
-            await BitwardenService.logout()
+        return {
+            BitwardenConstants.CREDIT_CARD_HOLDER_NAME: credit_card_data["cardholderName"],
+            BitwardenConstants.CREDIT_CARD_NUMBER: credit_card_data["number"],
+            BitwardenConstants.CREDIT_CARD_EXPIRATION_MONTH: credit_card_data["expMonth"],
+            BitwardenConstants.CREDIT_CARD_EXPIRATION_YEAR: credit_card_data["expYear"],
+            BitwardenConstants.CREDIT_CARD_CVV: credit_card_data["code"],
+            BitwardenConstants.CREDIT_CARD_BRAND: credit_card_data["brand"],
+        }
 
     @staticmethod
     async def get_credit_card_data(
-        client_id: str,
-        client_secret: str,
         master_password: str,
         bw_organization_id: str | None,
         bw_collection_ids: list[str] | None,
@@ -691,14 +615,10 @@ class BitwardenService:
         remaining_retries: int = settings.BITWARDEN_MAX_RETRIES,
         fail_reasons: list[str] = [],
     ) -> dict[str, str]:
-        """
-        Get the credit card data from the Bitwarden CLI.
-        """
+        """Get credit card data via the Vault Management API."""
         try:
             async with asyncio.timeout(settings.BITWARDEN_TIMEOUT_SECONDS):
                 return await BitwardenService._get_credit_card_data(
-                    client_id=client_id,
-                    client_secret=client_secret,
                     master_password=master_password,
                     bw_organization_id=bw_organization_id,
                     bw_collection_ids=bw_collection_ids,
@@ -716,8 +636,6 @@ class BitwardenService:
             remaining_retries -= 1
             LOG.info("Retrying to get credit card data from Bitwarden", remaining_retries=remaining_retries)
             return await BitwardenService.get_credit_card_data(
-                client_id=client_id,
-                client_secret=client_secret,
                 master_password=master_password,
                 bw_organization_id=bw_organization_id,
                 bw_collection_ids=bw_collection_ids,
@@ -767,7 +685,7 @@ class BitwardenService:
             return {
                 BitwardenConstants.USERNAME: login_item.username,
                 BitwardenConstants.PASSWORD: login_item.password,
-                BitwardenConstants.TOTP: login_item.totp,
+                BitwardenConstants.TOTP: login_item.totp or "",
             }
 
         if not url:
@@ -793,11 +711,7 @@ class BitwardenService:
         items = response["data"]["data"]
 
         if bw_organization_id and collection_id:
-            items = [
-                item
-                for item in items
-                if "collectionIds" in item and collection_id in item["collectionIds"]
-            ]
+            items = [item for item in items if "collectionIds" in item and collection_id in item["collectionIds"]]
 
         if not items:
             collection_id_str = f" in collection with ID: {collection_id}" if collection_id else ""
