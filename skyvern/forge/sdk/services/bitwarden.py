@@ -28,7 +28,10 @@ from skyvern.forge.sdk.schemas.credentials import (
 )
 
 LOG = structlog.get_logger()
-BITWARDEN_SERVER_BASE_URL = f"{settings.BITWARDEN_SERVER}:{settings.BITWARDEN_SERVER_PORT or 8002}"
+if settings.VAULTWARDEN_SERVER:
+    BITWARDEN_SERVER_BASE_URL = f"{settings.VAULTWARDEN_SERVER}:{settings.VAULTWARDEN_SERVER_PORT or 8000}"
+else:
+    BITWARDEN_SERVER_BASE_URL = f"{settings.BITWARDEN_SERVER}:{settings.BITWARDEN_SERVER_PORT or 8002}"
 
 
 class BitwardenItemType(IntEnum):

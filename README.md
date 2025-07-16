@@ -116,3 +116,11 @@ Please open Issues and Pull Requests for any improvements or fixes!
 ---
 
 **Deploy powerful, vision-driven browser automations — now optimized for modern PaaS.**
+
+## Vaultwarden Compatibility
+
+This fork includes basic configuration for running against
+[Vaultwarden](https://github.com/dani-garcia/vaultwarden). Set
+`VAULTWARDEN_SERVER` and `VAULTWARDEN_SERVER_PORT` to point at your instance.
+Vaultwarden lacks Bitwarden's Vault Management API, so some functionality may
+not work. See `docs/vaultwarden-support.md` for details.
