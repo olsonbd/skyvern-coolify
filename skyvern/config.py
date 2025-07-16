@@ -263,6 +263,8 @@ class Settings(BaseSettings):
 
     BITWARDEN_SERVER: str = "http://localhost"
     BITWARDEN_SERVER_PORT: int = 8002
+    VAULTWARDEN_SERVER: str | None = None
+    VAULTWARDEN_SERVER_PORT: int | None = None
 
     SVG_MAX_LENGTH: int = 100000
 
