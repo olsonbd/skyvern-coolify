@@ -21,6 +21,11 @@ import { cn } from "@/util/utils";
 
 type OS = "Windows" | "macOS" | "Linux" | "Unknown";
 
+const Constants = {
+  MinHeight: 52,
+  MinWidth: 256,
+} as const;
+
 function MacOsButton(props: {
   color: string;
   children?: React.ReactNode;
@@ -93,31 +98,49 @@ function getOs(): OS {
 
 function FloatingWindow({
   children,
+  initialWidth,
+  initialHeight,
+  maximized,
+  showCloseButton,
+  showMaximizeButton,
+  showMinimizeButton,
   title,
+  zIndex,
+  // --
+  onInteract,
 }: {
   children: React.ReactNode;
+  initialHeight?: number;
+  initialWidth?: number;
+  maximized?: boolean;
+  showCloseButton?: boolean;
+  showMaximizeButton?: boolean;
+  showMinimizeButton?: boolean;
   title: string;
+  zIndex?: string;
+  // --
+  onInteract?: () => void;
 }) {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [size, setSize] = useState({
     left: 0,
     top: 0,
-    width: 800,
-    height: 680,
+    height: initialHeight ?? Constants.MinHeight,
+    width: initialWidth ?? Constants.MinWidth,
   });
   const [lastSize, setLastSize] = useState({
     left: 0,
     top: 0,
-    width: 800,
-    height: 680,
+    height: initialHeight ?? Constants.MinHeight,
+    width: initialWidth ?? Constants.MinWidth,
   });
   const [sizeBeforeMaximize, setSizeBeforeMaximize] = useState({
     left: 0,
     top: 0,
-    width: 800,
-    height: 680,
+    height: initialHeight ?? Constants.MinHeight,
+    width: initialWidth ?? Constants.MinWidth,
   });
-  const [isMaximized, setIsMaximized] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(maximized ?? false);
   const [isMinimized, setIsMinimized] = useState(false);
   const parentRef = useRef<HTMLDivElement>(null);
   const resizableRef = useRef<HTMLDivElement>(null);
@@ -197,6 +220,19 @@ function FloatingWindow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [dragStartSize],
   );
+
+  useEffect(() => {
+    if (!initialWidth || !initialHeight) {
+      return;
+    }
+    setSize({
+      left: 0,
+      top: 0,
+      width: initialWidth,
+      height: initialHeight,
+    });
+    setPosition({ x: 0, y: 0 });
+  }, [initialWidth, initialHeight]);
 
   /**
    * Forces the sizing to take place after the resize is complete.
@@ -346,6 +382,7 @@ function FloatingWindow({
         height: "100%",
         pointerEvents: "none",
         padding: "0.5rem",
+        zIndex,
       }}
     >
       <Draggable
@@ -365,11 +402,15 @@ function FloatingWindow({
             background: "#020817",
             boxSizing: "border-box",
             pointerEvents: "auto",
+            overflow: "hidden",
           }}
-          className={cn("border-8 border-gray-900", {
+          className={cn("border-2 border-gray-700", {
             "hover:border-slate-500": !isMaximized,
           })}
-          bounds={parentRef.current ?? "parent"}
+          minHeight={Constants.MinHeight}
+          minWidth={Constants.MinWidth}
+          // TODO: turn back on; turning off clears a resize bug atm
+          // bounds={parentRef.current ?? "parent"}
           enable={
             isMaximized
               ? false
@@ -421,31 +462,40 @@ function FloatingWindow({
               display: "flex",
               flexDirection: "column",
             }}
+            onMouseDownCapture={() => onInteract?.()}
             onDoubleClick={() => {
               toggleMaximized();
             }}
           >
-            <div className="my-window-header flex w-full cursor-move items-center justify-start gap-2 bg-[#031827] p-3">
+            <div className="my-window-header flex h-[3rem] w-full cursor-move items-center justify-start gap-2 bg-[#031827] p-3">
               {os === "macOS" ? (
                 <>
                   <div className="buttons-container flex items-center gap-2">
-                    <MacOsButton
-                      color="#FF605C"
-                      disabled={true}
-                      tip="close"
-                      onClick={() => {}}
-                    />
-                    <MacOsButton
-                      color="#FFBD44"
-                      disabled={true}
-                      tip="minimize"
-                      onClick={onMinimize}
-                    />
-                    <MacOsButton
-                      color="#00CA4E"
-                      tip={isMaximized || isMinimized ? "restore" : "maximize"}
-                      onClick={toggleMaximized}
-                    />
+                    {showCloseButton && (
+                      <MacOsButton
+                        color="#FF605C"
+                        disabled={true}
+                        tip="close"
+                        onClick={() => {}}
+                      />
+                    )}
+                    {showMinimizeButton && (
+                      <MacOsButton
+                        color="#FFBD44"
+                        disabled={true}
+                        tip="minimize"
+                        onClick={onMinimize}
+                      />
+                    )}
+                    {showMaximizeButton && (
+                      <MacOsButton
+                        color="#00CA4E"
+                        tip={
+                          isMaximized || isMinimized ? "restore" : "maximize"
+                        }
+                        onClick={toggleMaximized}
+                      />
+                    )}
                   </div>
                   <div className="ml-auto">{title}</div>
                 </>
@@ -453,9 +503,11 @@ function FloatingWindow({
                 <>
                   <div>{title}</div>
                   <div className="buttons-container ml-auto flex h-full items-center gap-4">
-                    <WindowsButton onClick={toggleMaximized}>
-                      <div>{isMaximized ? "-" : "□"}</div>
-                    </WindowsButton>
+                    {showMaximizeButton && (
+                      <WindowsButton onClick={toggleMaximized}>
+                        <div>{isMaximized ? "-" : "□"}</div>
+                      </WindowsButton>
+                    )}
                   </div>
                 </>
               )}
